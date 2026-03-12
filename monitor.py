@@ -329,7 +329,7 @@ def send_telegram(message, config):
     payload = {
         "chat_id": chat_id,
         "text": message,
-        "parse_mode": "Markdown",
+        "parse_mode": "HTML",
     }
 
     try:
