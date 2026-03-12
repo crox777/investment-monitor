@@ -419,11 +419,12 @@ def run_check(force_digest=False):
 
         # Telegram
         emoji = "🔴" if is_action else "🟡"
+        level_name = "Action" if is_action else "Watch"
+        level_price = trigger['action'] if is_action else trigger['watch']
         tg_msg = (
-            f"{emoji} *{trigger['name']} — {level_type}*\n"
-            f"Price: `{price_str}`\n"
-            f"{'Action' if is_action else 'Watch'} level: "
-            f"`{format_price(trigger['action'] if is_action else trigger['watch'], trigger['ticker'])}`\n\n"
+            f"{emoji} <b>{trigger['name']} — {level_type}</b>\n"
+            f"Price: <code>{price_str}</code>\n"
+            f"{level_name} level: <code>{format_price(level_price, trigger['ticker'])}</code>\n\n"
             f"→ {msg}"
         )
         send_telegram(tg_msg, config)
@@ -436,7 +437,7 @@ def run_check(force_digest=False):
         price_str = format_price(cleared["price"], cleared["ticker"])
         msg = f"{cleared['name']} back to normal at {price_str}"
         send_macos_notification("✅ Alert Cleared", msg)
-        send_telegram(f"✅ *Alert Cleared*\n{msg}", config)
+        send_telegram(f"✅ <b>Alert Cleared</b>\n{msg}", config)
         log(f"CLEARED: {msg}")
 
     # ── Daily digest (if force_digest or first check of the day) ─────────
@@ -452,31 +453,38 @@ def run_check(force_digest=False):
         active_watches = [r for r in results if r["status"] == "watch"]
         active_actions = [r for r in results if r["status"] == "action"]
 
-        # Build digest
-        lines = ["📊 *INVESTMENT DIGEST*", f"_{datetime.now().strftime('%a, %b %d @ %I:%M %p')}_", ""]
+        # Build digest with proper Telegram markdown
+        timestamp = datetime.now().strftime('%a, %b %d @ %I:%M %p')
+        lines = [
+            "📊 <b>INVESTMENT DIGEST</b>",
+            f"<i>{timestamp}</i>",
+            ""
+        ]
 
         if active_actions:
-            lines.append("🔴 *⚠️  ACTION REQUIRED*")
+            lines.append("🔴 <b>⚠️  ACTION REQUIRED</b>")
             for a in active_actions:
-                lines.append(f"  • *{a['name']}* → `{format_price(a['price'], a['ticker'])}`")
-                lines.append(f"    {a['action_msg']}")
+                lines.append(f"  • <b>{a['name']}</b>")
+                lines.append(f"    Price: <code>{format_price(a['price'], a['ticker'])}</code>")
+                lines.append(f"    → {a['action_msg']}")
             lines.append("")
 
         if active_watches:
-            lines.append("🟡 *⏳ Watching*")
+            lines.append("🟡 <b>⏳ Watching</b>")
             for w in active_watches:
-                lines.append(f"  • *{w['name']}* → `{format_price(w['price'], w['ticker'])}`")
+                lines.append(f"  • <b>{w['name']}</b>")
+                lines.append(f"    Price: <code>{format_price(w['price'], w['ticker'])}</code>")
                 lines.append(f"    {w['dist_text']}")
             lines.append("")
 
         if not active_actions and not active_watches:
-            lines.append("✅ *All Clear*")
+            lines.append("✅ <b>All Clear</b>")
             lines.append("Standard DCA → no changes needed")
             lines.append("")
 
         # Alert distances with visual bars
-        lines.append("━━━━━━━━━━━━━━━━━━━━━")
-        lines.append("*BUFFER TO TRIGGERS*")
+        lines.append("")
+        lines.append("<b>PRICE vs TRIGGERS</b>")
         lines.append("")
         for r in results:
             if r["price"] and r["distance_pct"] is not None:
@@ -490,24 +498,26 @@ def run_check(force_digest=False):
                 if r["distance_pct"] > 0:
                     label = f"{r['distance_pct']:.1f}% {drop_or_rise}"
                 else:
-                    label = f"*TRIGGERED* (past by {abs(r['distance_pct']):.1f}%)"
+                    label = f"<b>TRIGGERED</b> (past by {abs(r['distance_pct']):.1f}%)"
 
-                lines.append(f"`{r['name']:>10}` {bar} {label}")
-                lines.append(f"         Current: `{now_str}` | Alert at: `{watch_str}`")
-
-        lines.append("")
-        lines.append("━━━━━━━━━━━━━━━━━━━━━")
+                lines.append(f"<b>{r['name']}</b>")
+                lines.append(f"{bar} {label}")
+                lines.append(f"Now: <code>{now_str}</code>  |  Alert: <code>{watch_str}</code>")
+                lines.append("")
 
         # Portfolio summary
         if portfolio["total_value"] > 0:
-            lines.append(f"💰 *Portfolio:* `${portfolio['total_value']:,.0f}`")
-            lines.append(f"   Gain: {portfolio['total_gain_pct']:+.1f}% ({portfolio['total_cost']:,.0f} → {portfolio['total_value']:,.0f})")
+            lines.append("<b>💰 PORTFOLIO</b>")
+            lines.append(f"Value: <code>${portfolio['total_value']:,.0f}</code>")
+            lines.append(f"Gain: <code>{portfolio['total_gain_pct']:+.1f}%</code>")
+            lines.append("")
 
         if btc_reserve > 0:
-            lines.append(f"₿ *BTC Reserve:* `${btc_reserve:,}` ({btc_note})")
+            lines.append("<b>₿ BTC RESERVE</b>")
+            lines.append(f"<code>${btc_reserve:,}</code> ({btc_note})")
+            lines.append("")
 
-        lines.append("")
-        lines.append("_Next check: follow the schedule_")
+        lines.append("<i>Next check: follow the schedule</i>")
 
         digest_text = "\n".join(lines)
 
