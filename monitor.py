@@ -13,10 +13,13 @@ import json
 import os
 import sys
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
+
+# Costa Rica timezone (GMT-6)
+COSTA_RICA_TZ = timezone(timedelta(hours=-6))
 
 # ─── TRY IMPORTING YFINANCE ─────────────────────────────────────────────────
 try:
@@ -454,7 +457,8 @@ def run_check(force_digest=False):
         active_actions = [r for r in results if r["status"] == "action"]
 
         # Build digest with proper Telegram markdown
-        timestamp = datetime.now().strftime('%a, %b %d @ %I:%M %p')
+        now_cr = datetime.now(COSTA_RICA_TZ)
+        timestamp = now_cr.strftime('%a, %b %d @ %I:%M %p') + " (GMT-6)"
         lines = [
             "📊 <b>INVESTMENT DIGEST</b>",
             f"<i>{timestamp}</i>",
