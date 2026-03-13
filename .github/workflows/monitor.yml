@@ -2,18 +2,12 @@ name: Investment Monitor
 
 on:
   schedule:
-    # Morning digest — 7 AM EST (12 PM UTC)
-    - cron: '0 12 * * 1-5'
-    # Hourly checks — 8:30 AM, 10 AM, 12 PM, 2 PM, 3 PM EST (13:30, 15, 17, 19, 20 UTC)
-    - cron: '30 13 * * 1-5'
-    - cron: '0 15 * * 1-5'
-    - cron: '0 17 * * 1-5'
-    - cron: '0 19 * * 1-5'
-    - cron: '0 20 * * 1-5'
-    # Afternoon digest — 4 PM EST (9 PM UTC)
-    - cron: '0 21 * * 1-5'
-    # After-hours crypto check — 10 PM EST (3 AM UTC next day)
-    - cron: '0 3 * * 2-6'
+    # 10 min after market open — 9:40 AM EST (2:40 PM UTC / 8:40 AM CST)
+    - cron: '40 14 * * 1-5'
+    # Midday — 12 PM CST (6 PM UTC / 1 PM EST)
+    - cron: '0 18 * * 1-5'
+    # 30 min before close — 3:30 PM EST (8:30 PM UTC / 2:30 PM CST)
+    - cron: '30 20 * * 1-5'
   workflow_dispatch:
 
 jobs:
@@ -31,20 +25,21 @@ jobs:
         run: |
           pip install yfinance requests
 
-      - name: Run price check
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python monitor.py check
-
-      - name: Run daily digest (if morning)
-        if: github.event.schedule == '0 12 * * 1-5' || github.event.schedule == '0 21 * * 1-5'
+      - name: Market open (9:40 AM) — full digest
+        if: github.event.schedule == '40 14 * * 1-5'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python monitor.py digest
+
+      - name: Midday & close — price check only (no digest)
+        if: github.event.schedule != '40 14 * * 1-5' && github.event.schedule != ''
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python monitor.py check
 
       - name: Upload state
         uses: actions/upload-artifact@v4
