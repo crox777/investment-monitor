@@ -25,21 +25,12 @@ jobs:
         run: |
           pip install yfinance requests
 
-      - name: Market open (9:40 AM) — full digest
-        if: github.event.schedule == '40 14 * * 1-5'
+      - name: Run digest (3x daily — 9:40 AM, noon, 2:30 PM CST)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python monitor.py digest
-
-      - name: Midday & close — price check only (no digest)
-        if: github.event.schedule != '40 14 * * 1-5' && github.event.schedule != ''
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python monitor.py check
 
       - name: Upload state
         uses: actions/upload-artifact@v4

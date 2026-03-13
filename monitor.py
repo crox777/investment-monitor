@@ -445,10 +445,12 @@ def run_check(force_digest=False):
 
     # ── Daily digest (if force_digest or first check of the day) ─────────
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    last_digest = state.get("_last_digest", "")
+    # Track digests by hour (allows up to 3 per day)
+    now_utc = datetime.utcnow()
+    digest_key = now_utc.strftime("%Y-%m-%d-%H")
+    last_digest_key = state.get("_last_digest_key", "")
 
-    if force_digest or last_digest != today:
+    if force_digest or last_digest_key != digest_key:
         portfolio = calculate_portfolio(prices)
         btc_reserve, btc_note = calculate_btc_reserve()
 
@@ -536,10 +538,10 @@ def run_check(force_digest=False):
             macos_msg = f"All clear. Portfolio: ${portfolio['total_value']:,.0f} ({portfolio['total_gain_pct']:+.1f}%)"
         send_macos_notification("📊 Daily Digest", macos_msg)
 
-        state["_last_digest"] = today
+        state["_last_digest_key"] = digest_key
         save_state(state)
 
-        log("Daily digest sent")
+        log("Digest sent")
 
     # Summary
     active = [r for r in results if r["status"] != "ok" and r["price"]]
