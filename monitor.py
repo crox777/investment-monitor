@@ -166,20 +166,20 @@ HOLDINGS = [
     {"ticker": "VXUS", "name": "Intl ETF", "shares": 60, "avg_cost": 71.95},
     {"ticker": "BTC", "name": "Grayscale BTC Mini", "shares": 197, "avg_cost": 43.79},
     # ── Growth / Tech ────────────────────────────────────────────────────
-    {"ticker": "GOOGL", "name": "Alphabet A", "shares": 24, "avg_cost": 232.88},
+    {"ticker": "GOOGL", "name": "Alphabet A", "shares": 16, "avg_cost": 232.88},
     {"ticker": "GOOG", "name": "Alphabet C", "shares": 11, "avg_cost": 197.79},
     {"ticker": "AMZN", "name": "Amazon", "shares": 35, "avg_cost": 223.40},
     {"ticker": "RKLB", "name": "Rocket Lab", "shares": 90, "avg_cost": 57.87},
     {"ticker": "ADBE", "name": "Adobe", "shares": 14, "avg_cost": 253.29},
     {"ticker": "NVDA", "name": "Nvidia", "shares": 9, "avg_cost": 138.70},
     {"ticker": "NFLX", "name": "Netflix", "shares": 9, "avg_cost": 90.53},
-    {"ticker": "DOCN", "name": "DigitalOcean", "shares": 11, "avg_cost": 49.76},
+    {"ticker": "DOCN", "name": "DigitalOcean", "shares": 0, "avg_cost": 49.76},
     {"ticker": "NU", "name": "Nu Holdings", "shares": 84, "avg_cost": 12.99},
     # ── Value / Diversifiers ─────────────────────────────────────────────
     {"ticker": "BRK-B", "name": "Berkshire Hathaway", "shares": 3, "avg_cost": 488.74},
     {"ticker": "BX", "name": "Blackstone", "shares": 6, "avg_cost": 155.67},
-    # ── Defensive sleeve (uncomment after purchase) ──────────────────────
-    # {"ticker": "GLD", "name": "Gold ETF", "shares": 0, "avg_cost": 0},
+    # ── Defensive sleeve ─────────────────────────────────────────────────
+    {"ticker": "GLD", "name": "Gold ETF", "shares": 1, "avg_cost": 413.76},
     # {"ticker": "VRTX", "name": "Vertex Pharma", "shares": 0, "avg_cost": 0},
     # {"ticker": "VHT", "name": "Healthcare ETF", "shares": 0, "avg_cost": 0},
 ]
@@ -191,14 +191,11 @@ BTC_MONTHLY_RESERVE = 500
 # ─── CASH & ACTION TRACKING ────────────────────────────────────────────────
 
 # Available cash in Schwab account (update manually after trades)
-CASH_BALANCE = 7927.15
+CASH_BALANCE = 10547.09
 
 # Pending one-time actions — shown in every daily digest until removed
 # Emojis: TRIM=✂️  BUY=🟢  LIMIT=⏳  WAIT=⏸️
 PENDING_ACTIONS = [
-    {"type": "TRIM", "emoji": "✂️", "desc": "Sell 11 DOCN shares → fund defensive sleeve"},
-    {"type": "TRIM", "emoji": "✂️", "desc": "Sell 8 GOOGL shares → rebalance from Alphabet overweight"},
-    {"type": "BUY", "emoji": "🟢", "desc": "Buy 1 GLD share at market → start gold position"},
     {"type": "LIMIT", "emoji": "⏳", "desc": "Set VRTX limit order at $420"},
     {"type": "LIMIT", "emoji": "⏳", "desc": "Set VHT limit order at $265"},
     {"type": "LIMIT", "emoji": "⏳", "desc": "Set VOO limit orders at $535 and $510 (SPY equivalent)"},
