@@ -38,7 +38,12 @@ LOG_FILE = SCRIPT_DIR / "monitor.log"
 # Price alert definitions
 # direction: "below" means alert when price drops BELOW level
 #            "above" means alert when price rises ABOVE level
+#
+# Priority 0-2: Macro / fear signals (VIX, S&P, BTC)
+# Priority 3-4: Core DCA tech positions (NVDA, ADBE)
+# Priority 5-10: Defensive sleeve & trim signals (GLD, VRTX, VHT, XLE, ITA, DOCN)
 ALERTS = [
+    # ── MACRO / FEAR SIGNALS ─────────────────────────────────────────────
     {
         "ticker": "^VIX",
         "name": "VIX",
@@ -47,65 +52,176 @@ ALERTS = [
         "direction": "above",
         "priority": 0,
         "watch_msg": "Elevated fear — stay alert, prepare cash for VOO",
-        "action_msg": "CONTRARIAN BUY SIGNAL — deploy all available cash to VOO NOW",
+        "action_msg": "CONTRARIAN BUY SIGNAL — deploy all available cash to VOO NOW, suspend everything else",
     },
     {
         "ticker": "^GSPC",
         "name": "S&P 500",
-        "watch": 6400,
-        "action": 6100,
+        "watch": 6100,
+        "action": 5800,
         "direction": "below",
         "priority": 1,
-        "watch_msg": "Correction zone — prepare to double VOO next month",
-        "action_msg": "DEPLOY AGGRESSIVELY — double VOO to $3,000, suspend BRK.B & VRTX",
+        "watch_msg": "Franzen structural support ~SPY $535 — prepare to double VOO next month",
+        "action_msg": "DEPLOY ALL CASH RESERVES to VOO — suspend everything except GLD purchases",
     },
     {
         "ticker": "BTC-USD",
         "name": "Bitcoin",
-        "watch": 50000,
-        "action": 40000,
+        "watch": 63000,
+        "action": 50000,
         "direction": "below",
         "priority": 2,
-        "watch_msg": "Deploy first BTC reserve tranche (half of accumulated cash)",
-        "action_msg": "LTHRP ZONE — deploy ALL remaining BTC reserve immediately",
+        "watch_msg": "Key $63K support broken — BTC ETF position already down 31%. Monitor, do NOT add. Hold.",
+        "action_msg": "LTHRP ZONE — deploy ALL BTC cash reserve immediately via BTC ETF",
     },
+    # ── CORE DCA TECH POSITIONS ──────────────────────────────────────────
     {
         "ticker": "NVDA",
         "name": "Nvidia",
-        "watch": 165,
-        "action": 148,
+        "watch": 155,
+        "action": 135,
         "direction": "below",
         "priority": 3,
-        "watch_msg": "~20x forward P/E — start building position faster ($250→$500)",
-        "action_msg": "18x forward P/E — shift FULL $500 tech budget to NVDA, suspend ADBE",
+        "watch_msg": "Approaching value zone — start building position faster ($250→$500)",
+        "action_msg": "Deep value — shift FULL $500 tech budget to NVDA, suspend ADBE",
     },
     {
         "ticker": "ADBE",
         "name": "Adobe",
-        "watch": 250,
-        "action": 220,
+        "watch": 225,
+        "action": 200,
         "direction": "below",
         "priority": 4,
-        "watch_msg": "Below 2022 lows — go aggressive ($250→$500)",
+        "watch_msg": "Deep discount — go aggressive ($250→$500 tech budget to ADBE)",
         "action_msg": "MAXIMUM FEAR — shift FULL $500 tech budget to ADBE, suspend NVDA",
+    },
+    # ── DEFENSIVE SLEEVE ─────────────────────────────────────────────────
+    {
+        "ticker": "GLD",
+        "name": "Gold ETF",
+        "watch": 405,
+        "action": 385,
+        "direction": "below",
+        "priority": 5,
+        "watch_msg": "GLD pullback — buy 2nd share. Zero dividend = zero withholding tax drag, lowest VOO correlation",
+        "action_msg": "GLD deep pullback — deploy full $1,085 GLD allocation NOW",
+    },
+    {
+        "ticker": "VRTX",
+        "name": "Vertex Pharma",
+        "watch": 420,
+        "action": 390,
+        "direction": "below",
+        "priority": 6,
+        "watch_msg": "VRTX at $420 — buy 1 share. Zero dividend, +28% in 2022 while SPY fell 18%",
+        "action_msg": "VRTX deep value — buy 2 shares at $390",
+    },
+    {
+        "ticker": "VHT",
+        "name": "Healthcare ETF",
+        "watch": 265,
+        "action": 250,
+        "direction": "below",
+        "priority": 7,
+        "watch_msg": "VHT pullback — buy 1 share. Broad healthcare diversification, ~1.3% yield (low withholding drag)",
+        "action_msg": "VHT deep pullback — buy 2 shares. Complements VRTX as broader sector bet",
+    },
+    {
+        "ticker": "XLE",
+        "name": "Energy SPDR",
+        "watch": 58,
+        "action": 52,
+        "direction": "below",
+        "priority": 8,
+        "watch_msg": "XLE pullback from highs — consider starting position. WARNING: 3.3% yield = withholding tax drag",
+        "action_msg": "XLE deep pullback — direct oil-shock beneficiary at discount. Mind the 3.3% dividend drag",
+    },
+    {
+        "ticker": "ITA",
+        "name": "Aerospace & Defense",
+        "watch": 148,
+        "action": 135,
+        "direction": "below",
+        "priority": 9,
+        "watch_msg": "ITA pullback — buy ONLY if Iran conflict still active. Skip entirely if ceasefire announced",
+        "action_msg": "ITA deep value — war-escalation kicker position. SKIP if ceasefire in effect",
+    },
+    # ── TRIM / SELL SIGNALS ──────────────────────────────────────────────
+    {
+        "ticker": "DOCN",
+        "name": "DOCN Trim",
+        "watch": 90,
+        "action": 100,
+        "direction": "above",
+        "priority": 10,
+        "watch_msg": "DOCN at $90+ — strong trim signal. Sell 11 shares to fund defensive sleeve",
+        "action_msg": "DOCN at $100+ — SELL ALL remaining shares. Take profits, redeploy to defensives",
     },
 ]
 
-# Portfolio holdings for value tracking (optional summary in daily digest)
+# Portfolio holdings for value tracking (updated from Schwab account Mar 2026)
 HOLDINGS = [
-    {"ticker": "VOO", "name": "S&P 500 ETF", "shares": 54, "avg_cost": 486},
-    {"ticker": "GOOGL", "name": "Alphabet", "shares": 68, "avg_cost": 113},
-    {"ticker": "AMZN", "name": "Amazon", "shares": 33, "avg_cost": 194},
-    {"ticker": "DOCN", "name": "DigitalOcean", "shares": 100, "avg_cost": 35.40},
-    {"ticker": "VXUS", "name": "Intl ETF", "shares": 50, "avg_cost": 61.60},
-    {"ticker": "RKLB", "name": "Rocket Lab", "shares": 110, "avg_cost": 13.30},
-    {"ticker": "NVDA", "name": "Nvidia", "shares": 12, "avg_cost": 104.20},
-    {"ticker": "NU", "name": "Nu Holdings", "shares": 100, "avg_cost": 10.94},
+    # ── Core positions ───────────────────────────────────────────────────
+    {"ticker": "VOO", "name": "S&P 500 ETF", "shares": 54, "avg_cost": 577.00},
+    {"ticker": "VXUS", "name": "Intl ETF", "shares": 60, "avg_cost": 71.95},
+    {"ticker": "BTC", "name": "Grayscale BTC Mini", "shares": 197, "avg_cost": 43.79},
+    # ── Growth / Tech ────────────────────────────────────────────────────
+    {"ticker": "GOOGL", "name": "Alphabet A", "shares": 24, "avg_cost": 232.88},
+    {"ticker": "GOOG", "name": "Alphabet C", "shares": 11, "avg_cost": 197.79},
+    {"ticker": "AMZN", "name": "Amazon", "shares": 35, "avg_cost": 223.40},
+    {"ticker": "RKLB", "name": "Rocket Lab", "shares": 90, "avg_cost": 57.87},
+    {"ticker": "ADBE", "name": "Adobe", "shares": 14, "avg_cost": 253.29},
+    {"ticker": "NVDA", "name": "Nvidia", "shares": 9, "avg_cost": 138.70},
+    {"ticker": "NFLX", "name": "Netflix", "shares": 9, "avg_cost": 90.53},
+    {"ticker": "DOCN", "name": "DigitalOcean", "shares": 11, "avg_cost": 49.76},
+    {"ticker": "NU", "name": "Nu Holdings", "shares": 84, "avg_cost": 12.99},
+    # ── Value / Diversifiers ─────────────────────────────────────────────
+    {"ticker": "BRK-B", "name": "Berkshire Hathaway", "shares": 3, "avg_cost": 488.74},
+    {"ticker": "BX", "name": "Blackstone", "shares": 6, "avg_cost": 155.67},
+    # ── Defensive sleeve (uncomment after purchase) ──────────────────────
+    # {"ticker": "GLD", "name": "Gold ETF", "shares": 0, "avg_cost": 0},
+    # {"ticker": "VRTX", "name": "Vertex Pharma", "shares": 0, "avg_cost": 0},
+    # {"ticker": "VHT", "name": "Healthcare ETF", "shares": 0, "avg_cost": 0},
 ]
 
 # BTC reserve tracking
 DCA_START = datetime(2026, 4, 1)
 BTC_MONTHLY_RESERVE = 500
+
+# ─── CASH & ACTION TRACKING ────────────────────────────────────────────────
+
+# Available cash in Schwab account (update manually after trades)
+CASH_BALANCE = 7927.15
+
+# Pending one-time actions — shown in every daily digest until removed
+# Emojis: TRIM=✂️  BUY=🟢  LIMIT=⏳  WAIT=⏸️
+PENDING_ACTIONS = [
+    {"type": "TRIM", "emoji": "✂️", "desc": "Sell 11 DOCN shares → fund defensive sleeve"},
+    {"type": "TRIM", "emoji": "✂️", "desc": "Sell 8 GOOGL shares → rebalance from Alphabet overweight"},
+    {"type": "BUY", "emoji": "🟢", "desc": "Buy 1 GLD share at market → start gold position"},
+    {"type": "LIMIT", "emoji": "⏳", "desc": "Set VRTX limit order at $420"},
+    {"type": "LIMIT", "emoji": "⏳", "desc": "Set VHT limit order at $265"},
+    {"type": "LIMIT", "emoji": "⏳", "desc": "Set VOO limit orders at $535 and $510 (SPY equivalent)"},
+    {"type": "WAIT", "emoji": "⏸️", "desc": "XLE — wait for pullback from 52-week high before entry"},
+    {"type": "WAIT", "emoji": "⏸️", "desc": "ITA — only buy if Iran conflict still active, skip if ceasefire"},
+]
+
+# Monthly DCA allocation plan ($4,500/month total)
+MONTHLY_DCA = {
+    "VOO": 2000,       # Core S&P 500 — largest allocation
+    "VXUS": 1000,      # International diversification
+    "cash_reserve": 500,  # General cash reserve
+    "tech_budget": 500,   # Toggles between NVDA / ADBE based on alerts
+    "btc_reserve": 500,   # BTC cash reserve (deployed on deep drawdown)
+}
+
+# ─── SCENARIO OVERRIDES (reference notes, not code logic) ──────────────────
+# VIX > 40:       Suspend ALL DCA. Deploy every dollar to VOO immediately.
+# S&P < 5,800:    Deploy all cash reserves + suspend everything except GLD.
+# Iran ceasefire: Accelerate VOO purchases. Delay XLE entry. Hold GLD position.
+# BTC < $50K:     Deploy BTC cash reserve via Grayscale BTC Mini ETF.
+# NVDA < $135:    Full $500 tech budget → NVDA, suspend ADBE.
+# ADBE < $200:    Full $500 tech budget → ADBE, suspend NVDA.
 
 
 # ─── LOGGING ─────────────────────────────────────────────────────────────────
@@ -488,6 +604,13 @@ def run_check(force_digest=False):
             lines.append("Standard DCA → no changes needed")
             lines.append("")
 
+        # Pending actions checklist
+        if PENDING_ACTIONS:
+            lines.append("📋 <b>PENDING ACTIONS</b>")
+            for pa in PENDING_ACTIONS:
+                lines.append(f"  {pa['emoji']} {pa['desc']}")
+            lines.append("")
+
         # Alert distances with visual bars
         lines.append("")
         lines.append("<b>PRICE vs TRIGGERS</b>")
@@ -515,6 +638,7 @@ def run_check(force_digest=False):
         if portfolio["total_value"] > 0:
             lines.append("<b>💰 PORTFOLIO</b>")
             lines.append(f"Value: <code>${portfolio['total_value']:,.0f}</code>")
+            lines.append(f"Cash: <code>${CASH_BALANCE:,.2f}</code>")
             lines.append(f"Gain: <code>{portfolio['total_gain_pct']:+.1f}%</code>")
             lines.append("")
 
@@ -615,7 +739,14 @@ def print_status():
         print(f"  {status_icon} {r['name']:>12}  {price_str:>12}  {levels:>20}  {dist:>24}  {r['status'].upper()}")
 
     print(f"\n  💰 Portfolio: ${portfolio['total_value']:,.0f} ({portfolio['total_gain_pct']:+.1f}%)")
+    print(f"  💵 Cash: ${CASH_BALANCE:,.2f}")
     print(f"  ₿  BTC Reserve: ${btc_reserve:,} ({btc_note})")
+
+    if PENDING_ACTIONS:
+        print(f"\n  📋 PENDING ACTIONS")
+        for pa in PENDING_ACTIONS:
+            print(f"     {pa['emoji']} {pa['desc']}")
+
     print("=" * 60 + "\n")
 
 
