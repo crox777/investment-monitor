@@ -1,0 +1,37 @@
+name: Yogurt Stock Monitor
+
+on:
+  schedule:
+    # Once daily — 9:00 AM Costa Rica time (15:00 UTC, GMT-6)
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install curl_cffi requests
+
+      - name: Check yogurt stock
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python yogurt_monitor.py check
+
+      - name: Upload state
+        uses: actions/upload-artifact@v4
+        with:
+          name: yogurt-state
+          path: yogurt_state.json
+          retention-days: 30
+          if-no-files-found: ignore
