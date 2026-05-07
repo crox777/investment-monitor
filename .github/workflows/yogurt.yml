@@ -4,6 +4,8 @@ on:
   schedule:
     # Once daily — 9:00 AM Costa Rica time (15:00 UTC, GMT-6)
     - cron: '0 15 * * *'
+    # TEMP smoke-test slot — fires at 19:10 UTC. Remove after first test run.
+    - cron: '10 19 * * *'
   workflow_dispatch:
 
 jobs:
