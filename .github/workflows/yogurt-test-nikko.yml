@@ -1,10 +1,11 @@
-name: Yogurt Stock Monitor
+name: Yogurt Stock Monitor — One-shot Nikko's test
 
+# Fires exactly once when this file is added/modified on main.
+# Delete this file after the test run.
 on:
-  schedule:
-    # Once daily — 9:00 AM Costa Rica time (15:00 UTC, GMT-6)
-    - cron: '0 15 * * *'
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/yogurt-test-nikko.yml'
 
 jobs:
   check:
@@ -21,17 +22,11 @@ jobs:
         run: |
           pip install curl_cffi requests
 
-      - name: Check yogurt stock
+      - name: Check Nikko's yogurt stock (one-shot)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          YOGURT_URL: https://www.pricesmart.com/es-cr/producto/nikkos-yogurt-griego-natural-950-g-2-1-lb-501581/501581
+          YOGURT_NAME: "Nikko's Greek Yogurt 950g (one-shot test)"
         run: |
           python yogurt_monitor.py check
-
-      - name: Upload state
-        uses: actions/upload-artifact@v4
-        with:
-          name: yogurt-state
-          path: yogurt_state.json
-          retention-days: 30
-          if-no-files-found: ignore

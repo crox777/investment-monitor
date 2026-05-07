@@ -42,6 +42,12 @@ PRODUCT = {
     "id": "98930",
 }
 
+# Override the watched product via env vars (used by the one-shot test workflow).
+if os.getenv("YOGURT_URL"):
+    PRODUCT["url"] = os.environ["YOGURT_URL"]
+if os.getenv("YOGURT_NAME"):
+    PRODUCT["name"] = os.environ["YOGURT_NAME"]
+
 # Spanish/English phrases that indicate the product is OUT of stock.
 # If any of these appear we treat it as out-of-stock.
 OUT_OF_STOCK_MARKERS = [
