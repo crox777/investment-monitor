@@ -66,7 +66,9 @@ OUT_OF_STOCK_MARKERS = [
 ]
 
 # Phrases that indicate the product IS in stock.
+# PriceSmart's button label is "Agregar A Carrito" (no "l"), so we list both.
 IN_STOCK_MARKERS = [
+    "agregar a carrito",
     "agregar al carrito",
     "añadir al carrito",
     "add to cart",

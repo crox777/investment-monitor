@@ -2,7 +2,7 @@ name: Yogurt Stock Monitor — One-shot Nikko's test
 
 # Fires exactly once when this file is added/modified on main.
 # Delete this file after the test run.
-# rerun-bump: 5 (longer hydration + dump full visible text)
+# rerun-bump: 6 (fixed "Agregar A Carrito" marker)
 on:
   push:
     paths:
