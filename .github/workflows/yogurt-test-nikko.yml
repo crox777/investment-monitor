@@ -2,7 +2,7 @@ name: Yogurt Stock Monitor — One-shot Nikko's test
 
 # Fires exactly once when this file is added/modified on main.
 # Delete this file after the test run.
-# rerun-bump: 3 (SKU-anchored debug snippets)
+# rerun-bump: 4 (switched to playwright)
 on:
   push:
     paths:
@@ -21,7 +21,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install curl_cffi requests
+          pip install playwright requests
+          playwright install --with-deps chromium
 
       - name: Check Nikko's yogurt stock (one-shot, debug)
         env:
@@ -33,11 +34,14 @@ jobs:
         run: |
           python yogurt_monitor.py check
 
-      - name: Upload fetched HTML for inspection
+      - name: Upload debug artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nikko-page-html
-          path: page_debug.html
+          name: nikko-debug
+          path: |
+            page_debug.html
+            page_debug.txt
+            page_debug.png
           retention-days: 7
           if-no-files-found: warn

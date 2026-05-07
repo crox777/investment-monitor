@@ -19,7 +19,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install curl_cffi requests
+          pip install playwright requests
+          playwright install --with-deps chromium
 
       - name: Check yogurt stock
         env:

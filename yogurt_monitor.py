@@ -2,14 +2,16 @@
 """
 Yogurt Stock Monitor
 ====================
-Checks the PriceSmart Costa Rica page for the Member's Selection Greek Yogurt
-once daily and pings Telegram:
+Checks the PriceSmart Costa Rica page for a yogurt SKU once daily and pings
+Telegram:
   - 🚨 ALERT message when the product is back in stock
   - 📦 regular status message when it's still out of stock
 
-PriceSmart's site is behind a TLS-fingerprinting bot blocker (Akamai), so
-plain `requests` returns 403. We use `curl_cffi` which impersonates Chrome's
-TLS handshake to fetch the page like a real browser.
+PriceSmart's product page is a Nuxt SPA: the static HTML only contains i18n
+label templates ("Out of Stock", "Add to Cart") that are present regardless
+of the actual stock state, and the SKU-specific inventory is fetched by JS
+after the page loads. We therefore use Playwright (headless Chromium) to
+render the page, then read the rendered DOM's visible text to decide.
 """
 
 import json
@@ -23,9 +25,9 @@ from pathlib import Path
 import requests
 
 try:
-    from curl_cffi import requests as curl_requests
+    from playwright.sync_api import sync_playwright
 except ImportError:
-    print("ERROR: curl_cffi not installed. Run: pip install curl_cffi")
+    print("ERROR: playwright not installed. Run: pip install playwright && playwright install chromium")
     sys.exit(1)
 
 # ─── CONFIGURATION ──────────────────────────────────────────────────────────
@@ -119,20 +121,47 @@ def save_state(state):
 
 # ─── PAGE FETCH ─────────────────────────────────────────────────────────────
 
-def fetch_page(url):
-    """Fetch the product page using a Chrome TLS fingerprint to bypass bot block."""
-    headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "es-CR,es;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
-        "Upgrade-Insecure-Requests": "1",
-    }
-    resp = curl_requests.get(url, headers=headers, impersonate="chrome124", timeout=30)
-    log(f"Fetched {url} → HTTP {resp.status_code} ({len(resp.text)} bytes)")
-    if resp.status_code != 200:
-        raise RuntimeError(f"HTTP {resp.status_code} fetching product page")
-    return resp.text
+def fetch_page(url, debug=False):
+    """
+    Render the product page with headless Chromium and return
+    (visible_body_text, full_html). Visible text is what the user actually
+    sees, which is what we use for stock detection.
+    """
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        context = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            locale="es-CR",
+            viewport={"width": 1280, "height": 900},
+        )
+        page = context.new_page()
+        log(f"Navigating to {url}")
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        # Let client-side fetches (inventory, price) complete
+        try:
+            page.wait_for_load_state("networkidle", timeout=20000)
+        except Exception:
+            log("networkidle timeout — continuing anyway")
+        page.wait_for_timeout(3000)
+
+        body_text = page.locator("body").inner_text()
+        full_html = page.content()
+        log(f"Rendered page: body={len(body_text)} chars, html={len(full_html)} chars")
+
+        if debug:
+            (SCRIPT_DIR / "page_debug.html").write_text(full_html)
+            (SCRIPT_DIR / "page_debug.txt").write_text(body_text)
+            try:
+                page.screenshot(path=str(SCRIPT_DIR / "page_debug.png"), full_page=True)
+                log("Saved debug HTML + body text + screenshot")
+            except Exception as e:
+                log(f"Screenshot failed: {e}")
+
+        browser.close()
+        return body_text, full_html
 
 
 # ─── STOCK DETECTION ────────────────────────────────────────────────────────
@@ -199,41 +228,40 @@ def find_inline_stock_state(html):
     return None, None
 
 
-def check_stock(html):
+def check_stock(body_text, full_html):
     """
-    Inspect the rendered HTML for stock indicators.
+    Decide stock status from the rendered page.
     Priority order:
-      1. JSON-LD schema.org availability (most reliable)
-      2. Inline JSON state blobs (inStock / stockStatus / etc.)
-      3. Keyword markers in visible text (last-resort fallback)
+      1. JSON-LD schema.org availability (if PriceSmart ever adds it)
+      2. Visible body text — what the user actually sees on screen
+      3. Inline JSON state blobs (last-resort fallback)
     Returns: (status, evidence, price)
     """
-    # Best-effort price extraction (display only)
     price = None
-    m = re.search(r'"price"\s*:\s*"?(\d+(?:[.,]\d+)?)', html)
+    m = re.search(r'"price"\s*:\s*"?(\d+(?:[.,]\d+)?)', full_html)
     if m:
         price = m.group(1)
 
-    status, evidence = find_jsonld_availability(html)
+    status, evidence = find_jsonld_availability(full_html)
     if status:
         return status, f"json-ld: {evidence}", price
 
-    status, evidence = find_inline_stock_state(html)
-    if status:
-        return status, f"inline-json: {evidence}", price
-
-    text = html.lower()
+    text = body_text.lower()
     out_hits = [m for m in OUT_OF_STOCK_MARKERS if m in text]
     in_hits = [m for m in IN_STOCK_MARKERS if m in text]
 
     if out_hits and not in_hits:
-        return "out_of_stock", f"keyword: {', '.join(out_hits)}", price
+        return "out_of_stock", f"visible-text: {', '.join(out_hits)}", price
     if in_hits and not out_hits:
-        return "in_stock", f"keyword: {', '.join(in_hits)}", price
+        return "in_stock", f"visible-text: {', '.join(in_hits)}", price
     if in_hits and out_hits:
-        # Both present — fall through to "unknown" rather than guess.
-        return "unknown", f"keyword ambiguous (in: {in_hits}, out: {out_hits})", price
-    return "unknown", "no stock markers matched", price
+        return "unknown", f"visible-text ambiguous (in: {in_hits}, out: {out_hits})", price
+
+    status, evidence = find_inline_stock_state(full_html)
+    if status:
+        return status, f"inline-json: {evidence}", price
+
+    return "unknown", "no stock markers matched in visible text", price
 
 
 # ─── TELEGRAM ───────────────────────────────────────────────────────────────
@@ -282,71 +310,48 @@ def run_check():
     now_cr = datetime.now(COSTA_RICA_TZ)
     timestamp = now_cr.strftime("%a, %b %d @ %I:%M %p") + " (GMT-6)"
 
+    debug = os.getenv("DEBUG") == "1"
     try:
-        html = fetch_page(PRODUCT["url"])
+        body_text, full_html = fetch_page(PRODUCT["url"], debug=debug)
     except Exception as e:
         log(f"Fetch failed: {e}")
         send_telegram(
             f"⚠️ <b>Yogurt Monitor — fetch failed</b>\n"
             f"<i>{timestamp}</i>\n\n"
-            f"Could not reach PriceSmart: <code>{e}</code>",
+            f"Could not render PriceSmart page: <code>{html_escape(str(e))}</code>",
             config,
         )
         return
 
-    status, evidence, price = check_stock(html)
+    status, evidence, price = check_stock(body_text, full_html)
     log(f"Status: {status} ({evidence})  price={price}")
 
-    if os.getenv("DEBUG") == "1":
-        debug_path = SCRIPT_DIR / "page_debug.html"
-        debug_path.write_text(html)
-        log(f"DEBUG: saved fetched HTML to {debug_path} ({len(html)} bytes)")
-        # Surface short snippets around stock-related keywords so we can iterate
-        # Extract the SKU from the URL (last path segment) so we can search
-        # for the product's own data block rather than i18n labels.
-        sku_match = re.search(r"/(\d+)/?(?:\?|$)", PRODUCT["url"])
-        sku = sku_match.group(1) if sku_match else None
-
-        keywords = [
-            "inventoryStatus", "stockState", "stockStatus",
-            "isAvailable", "isInStock", "outOfStock", "soldOut", "sold-out",
-            "clubInventory", "qty\":", "quantity\":",
-            "add-to-cart", "addToCart",
-            "Recoger en Club", "Entrega Est",
-        ]
-        if sku:
-            # Search for several windows around the SKU — first is the URL
-            # itself, later occurrences are usually in the product data block.
-            keywords = [f"sku:{sku}"] + keywords
-
+    if debug:
+        # Send a debug Telegram showing the rendered visible-text neighborhood
+        # of stock-related keywords so we can iterate on markers.
         snippets = []
-        for kw in keywords:
-            search_term = sku if kw.startswith("sku:") else kw
-            # Find ALL occurrences for SKU; first occurrence for the rest.
-            positions = []
-            start = 0
-            while True:
-                i = html.lower().find(search_term.lower(), start)
-                if i < 0 or len(positions) >= (3 if kw.startswith("sku:") else 1):
-                    break
-                positions.append(i)
-                start = i + 1
-            for pos in positions:
-                lo = max(0, pos - 100)
-                hi = min(len(html), pos + 250)
-                raw = html[lo:hi].replace("\n", " ")[:300]
+        for kw in [
+            "agotado", "agregar al carrito", "añadir al carrito", "add to cart",
+            "no disponible", "fuera de stock", "out of stock",
+            "notificarme", "notify me",
+            "disponible", "stock",
+            "recoger en club", "entrega est",
+        ]:
+            i = body_text.lower().find(kw.lower())
+            if i >= 0:
+                lo = max(0, i - 60)
+                hi = min(len(body_text), i + 140)
                 snippets.append(
-                    f"<b>{html_escape(kw)}</b> @ {pos}: <code>{html_escape(raw)}</code>"
+                    f"<b>{html_escape(kw)}</b>: <code>{html_escape(body_text[lo:hi].replace(chr(10), ' / ')[:200])}</code>"
                 )
         debug_msg = (
             f"🔍 <b>Debug — {html_escape(PRODUCT['name'])}</b>\n"
             f"<i>{timestamp}</i>\n"
             f"Status: <code>{html_escape(status)}</code>\n"
             f"Evidence: <code>{html_escape(evidence)}</code>\n"
-            f"HTML size: <code>{len(html)}</code>\n\n"
-            + ("\n\n".join(snippets) if snippets else "<i>No stock-related keywords found in HTML.</i>")
+            f"Visible text size: <code>{len(body_text)}</code>\n\n"
+            + ("\n\n".join(snippets) if snippets else "<i>No stock-related keywords found in visible text.</i>")
         )
-        # Telegram limit is 4096 chars
         if len(debug_msg) > 3900:
             debug_msg = debug_msg[:3900] + "\n<i>…truncated</i>"
         send_telegram(debug_msg, config)
