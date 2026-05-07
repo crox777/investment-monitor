@@ -191,6 +191,13 @@ def run_check():
     log("Starting yogurt stock check")
 
     config = load_config()
+    has_token = bool(config.get("telegram_bot_token"))
+    has_chat = bool(config.get("telegram_chat_id"))
+    log(f"Telegram config — token: {'set' if has_token else 'MISSING'}, chat_id: {'set' if has_chat else 'MISSING'}")
+    if not (has_token and has_chat):
+        log("ABORT: Telegram secrets not configured")
+        sys.exit(2)
+
     state = load_state()
     prev_status = state.get("status", "unknown")
 
@@ -271,7 +278,20 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "check":
-        run_check()
+        try:
+            run_check()
+        except SystemExit:
+            raise
+        except Exception as e:
+            log(f"FATAL: {type(e).__name__}: {e}")
+            try:
+                send_telegram(
+                    f"💥 <b>Yogurt Monitor crashed</b>\n<code>{type(e).__name__}: {e}</code>",
+                    load_config(),
+                )
+            except Exception:
+                pass
+            raise
     elif args.command == "test":
         config = load_config()
         ok = send_telegram(
