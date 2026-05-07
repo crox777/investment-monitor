@@ -142,10 +142,18 @@ def fetch_page(url, debug=False):
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
         # Let client-side fetches (inventory, price) complete
         try:
-            page.wait_for_load_state("networkidle", timeout=20000)
+            page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
             log("networkidle timeout — continuing anyway")
-        page.wait_for_timeout(3000)
+        # Scroll to bottom and back to trigger any lazy-loaded sections, then
+        # give hydration extra time to settle.
+        try:
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(1500)
+            page.evaluate("window.scrollTo(0, 0)")
+        except Exception:
+            pass
+        page.wait_for_timeout(5000)
 
         body_text = page.locator("body").inner_text()
         full_html = page.content()
@@ -327,33 +335,20 @@ def run_check():
     log(f"Status: {status} ({evidence})  price={price}")
 
     if debug:
-        # Send a debug Telegram showing the rendered visible-text neighborhood
-        # of stock-related keywords so we can iterate on markers.
-        snippets = []
-        for kw in [
-            "agotado", "agregar al carrito", "añadir al carrito", "add to cart",
-            "no disponible", "fuera de stock", "out of stock",
-            "notificarme", "notify me",
-            "disponible", "stock",
-            "recoger en club", "entrega est",
-        ]:
-            i = body_text.lower().find(kw.lower())
-            if i >= 0:
-                lo = max(0, i - 60)
-                hi = min(len(body_text), i + 140)
-                snippets.append(
-                    f"<b>{html_escape(kw)}</b>: <code>{html_escape(body_text[lo:hi].replace(chr(10), ' / ')[:200])}</code>"
-                )
+        # Dump the full visible body text so we can see exactly what
+        # PriceSmart renders and pick the right marker.
+        flat = " / ".join(line.strip() for line in body_text.splitlines() if line.strip())
+        budget = 3500
         debug_msg = (
             f"🔍 <b>Debug — {html_escape(PRODUCT['name'])}</b>\n"
             f"<i>{timestamp}</i>\n"
             f"Status: <code>{html_escape(status)}</code>\n"
             f"Evidence: <code>{html_escape(evidence)}</code>\n"
             f"Visible text size: <code>{len(body_text)}</code>\n\n"
-            + ("\n\n".join(snippets) if snippets else "<i>No stock-related keywords found in visible text.</i>")
+            f"<b>Full visible text:</b>\n<code>{html_escape(flat[:budget])}</code>"
         )
-        if len(debug_msg) > 3900:
-            debug_msg = debug_msg[:3900] + "\n<i>…truncated</i>"
+        if len(flat) > budget:
+            debug_msg += f"\n<i>…truncated ({len(flat) - budget} more chars)</i>"
         send_telegram(debug_msg, config)
 
     price_line = f"\nPrice: <code>₡{price}</code>" if price else ""
