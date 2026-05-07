@@ -62,17 +62,26 @@ Behavior:
 - 📦 Sends a "still out of stock" message when unavailable
 - ❓ Sends a "status unclear" message if the page loads but markup changed
 
-PriceSmart blocks plain `requests` (TLS fingerprinting), so the script uses
-[`curl_cffi`](https://pypi.org/project/curl-cffi/) to impersonate Chrome.
+PriceSmart's product page is a Nuxt SPA — the static HTML only contains
+i18n label templates ("Out of Stock", "Add to Cart") that are present on
+every page regardless of actual stock state, and the SKU-specific inventory
+is fetched by JS. The script therefore uses **Playwright** (headless
+Chromium) to render the page, then reads the visible body text and matches
+it against marker phrases (`"agregar a carrito"` for in-stock,
+`"fuera de stock"` / `"agotado"` / etc. for out-of-stock).
 
 Local testing:
 
 ```bash
-pip install curl_cffi requests
+pip install playwright requests
+playwright install chromium
 python yogurt_monitor.py check    # run a real check
 python yogurt_monitor.py test     # ping Telegram only
 python yogurt_monitor.py status   # print last saved state
 ```
 
+Set `DEBUG=1` to dump the rendered visible text into the Telegram message
+(useful when PriceSmart changes their wording and detection breaks).
+
 To watch a different product, edit the `PRODUCT` dict at the top of
-`yogurt_monitor.py`.
+`yogurt_monitor.py`, or set `YOGURT_URL` / `YOGURT_NAME` env vars.
