@@ -47,3 +47,32 @@ python monitor.py test          # Test Telegram
 | ADBE   | 250   | 220    | below     |
 
 Modify in `monitor.py` ALERTS section.
+
+## Yogurt Stock Monitor
+
+A second monitor (`yogurt_monitor.py`) reuses the same Telegram secrets to
+watch a PriceSmart Costa Rica product page once daily at 9 AM CR time and
+ping when the Member's Selection Greek Yogurt is back in stock.
+
+Workflow: `.github/workflows/yogurt.yml` (cron `0 15 * * *`).
+
+Behavior:
+- 🚨 Sends an **alert** the first day it transitions back to in-stock
+- 🥛 Sends a soft "still in stock" reminder on subsequent days
+- 📦 Sends a "still out of stock" message when unavailable
+- ❓ Sends a "status unclear" message if the page loads but markup changed
+
+PriceSmart blocks plain `requests` (TLS fingerprinting), so the script uses
+[`curl_cffi`](https://pypi.org/project/curl-cffi/) to impersonate Chrome.
+
+Local testing:
+
+```bash
+pip install curl_cffi requests
+python yogurt_monitor.py check    # run a real check
+python yogurt_monitor.py test     # ping Telegram only
+python yogurt_monitor.py status   # print last saved state
+```
+
+To watch a different product, edit the `PRODUCT` dict at the top of
+`yogurt_monitor.py`.
