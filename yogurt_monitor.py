@@ -136,31 +136,102 @@ def fetch_page(url):
 
 # ─── STOCK DETECTION ────────────────────────────────────────────────────────
 
+def find_jsonld_availability(html):
+    """
+    Look for schema.org Product availability in <script type="application/ld+json">
+    blocks. Returns ("in_stock" | "out_of_stock" | None, raw availability string or None).
+    """
+    blocks = re.findall(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    for raw in blocks:
+        try:
+            data = json.loads(raw.strip())
+        except Exception:
+            continue
+        # JSON-LD can be a single object, a list, or a graph
+        candidates = data if isinstance(data, list) else [data]
+        if isinstance(data, dict) and "@graph" in data:
+            candidates = data["@graph"]
+        for item in candidates:
+            if not isinstance(item, dict):
+                continue
+            offers = item.get("offers")
+            if not offers:
+                continue
+            offers_list = offers if isinstance(offers, list) else [offers]
+            for offer in offers_list:
+                if not isinstance(offer, dict):
+                    continue
+                avail = str(offer.get("availability", "")).lower()
+                if not avail:
+                    continue
+                if "instock" in avail or "in_stock" in avail:
+                    return "in_stock", avail
+                if "outofstock" in avail or "out_of_stock" in avail or "soldout" in avail:
+                    return "out_of_stock", avail
+    return None, None
+
+
+def find_inline_stock_state(html):
+    """
+    Look for an inline JSON state blob (Next.js __NEXT_DATA__, Nuxt __NUXT__,
+    or any JSON with an "inStock"/"stockStatus" field).
+    Returns ("in_stock" | "out_of_stock" | None, evidence_str).
+    """
+    # Common boolean / status keys e-commerce frameworks expose
+    patterns = [
+        (r'"inStock"\s*:\s*(true|false)',          lambda v: "in_stock" if v == "true" else "out_of_stock"),
+        (r'"isInStock"\s*:\s*(true|false)',        lambda v: "in_stock" if v == "true" else "out_of_stock"),
+        (r'"available"\s*:\s*(true|false)',        lambda v: "in_stock" if v == "true" else "out_of_stock"),
+        (r'"outOfStock"\s*:\s*(true|false)',       lambda v: "out_of_stock" if v == "true" else "in_stock"),
+        (r'"stockStatus"\s*:\s*"([^"]+)"',         lambda v: "in_stock" if "in" in v.lower() else "out_of_stock"),
+        (r'"availability"\s*:\s*"([^"]+)"',        lambda v: "in_stock" if "instock" in v.lower().replace(" ", "") else "out_of_stock"),
+    ]
+    for pat, classify in patterns:
+        m = re.search(pat, html)
+        if m:
+            v = m.group(1)
+            return classify(v), f'{pat.split("(")[0]}={v}'
+    return None, None
+
+
 def check_stock(html):
     """
     Inspect the rendered HTML for stock indicators.
-    Returns: ("in_stock" | "out_of_stock" | "unknown", evidence_string)
+    Priority order:
+      1. JSON-LD schema.org availability (most reliable)
+      2. Inline JSON state blobs (inStock / stockStatus / etc.)
+      3. Keyword markers in visible text (last-resort fallback)
+    Returns: (status, evidence, price)
     """
-    text = html.lower()
-
-    out_hits = [m for m in OUT_OF_STOCK_MARKERS if m in text]
-    in_hits = [m for m in IN_STOCK_MARKERS if m in text]
-
-    # Try to extract the price (best-effort, for the message body)
+    # Best-effort price extraction (display only)
     price = None
     m = re.search(r'"price"\s*:\s*"?(\d+(?:[.,]\d+)?)', html)
     if m:
         price = m.group(1)
 
+    status, evidence = find_jsonld_availability(html)
+    if status:
+        return status, f"json-ld: {evidence}", price
+
+    status, evidence = find_inline_stock_state(html)
+    if status:
+        return status, f"inline-json: {evidence}", price
+
+    text = html.lower()
+    out_hits = [m for m in OUT_OF_STOCK_MARKERS if m in text]
+    in_hits = [m for m in IN_STOCK_MARKERS if m in text]
+
     if out_hits and not in_hits:
-        return "out_of_stock", f"matched: {', '.join(out_hits)}", price
+        return "out_of_stock", f"keyword: {', '.join(out_hits)}", price
     if in_hits and not out_hits:
-        return "in_stock", f"matched: {', '.join(in_hits)}", price
+        return "in_stock", f"keyword: {', '.join(in_hits)}", price
     if in_hits and out_hits:
-        # Ambiguous — page might contain both add-to-cart template and an
-        # out-of-stock notice. Lean on the out-of-stock signal as the safer
-        # default (avoids false "back in stock" alerts).
-        return "out_of_stock", f"ambiguous (in: {in_hits}, out: {out_hits})", price
+        # Both present — fall through to "unknown" rather than guess.
+        return "unknown", f"keyword ambiguous (in: {in_hits}, out: {out_hits})", price
     return "unknown", "no stock markers matched", price
 
 
@@ -224,6 +295,28 @@ def run_check():
 
     status, evidence, price = check_stock(html)
     log(f"Status: {status} ({evidence})  price={price}")
+
+    if os.getenv("DEBUG") == "1":
+        debug_path = SCRIPT_DIR / "page_debug.html"
+        debug_path.write_text(html)
+        log(f"DEBUG: saved fetched HTML to {debug_path} ({len(html)} bytes)")
+        # Surface short snippets around stock-related keywords so we can iterate
+        snippets = []
+        for kw in ["agotado", "carrito", "stock", "disponib", "availability", "inStock"]:
+            i = html.lower().find(kw.lower())
+            if i >= 0:
+                start = max(0, i - 80)
+                end = min(len(html), i + 120)
+                snippets.append(f"<b>{kw}</b>: <code>…{html[start:end].strip()[:180]}…</code>")
+        debug_msg = (
+            f"🔍 <b>Debug — {PRODUCT['name']}</b>\n"
+            f"<i>{timestamp}</i>\n"
+            f"Status: <code>{status}</code>\n"
+            f"Evidence: <code>{evidence}</code>\n"
+            f"HTML size: <code>{len(html)}</code>\n\n"
+            + ("\n".join(snippets) if snippets else "<i>No stock-related keywords found in HTML.</i>")
+        )
+        send_telegram(debug_msg, config)
 
     price_line = f"\nPrice: <code>₡{price}</code>" if price else ""
     link = f'<a href="{PRODUCT["url"]}">{PRODUCT["name"]}</a>'

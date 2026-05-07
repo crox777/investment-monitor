@@ -22,11 +22,21 @@ jobs:
         run: |
           pip install curl_cffi requests
 
-      - name: Check Nikko's yogurt stock (one-shot)
+      - name: Check Nikko's yogurt stock (one-shot, debug)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           YOGURT_URL: https://www.pricesmart.com/es-cr/producto/nikkos-yogurt-griego-natural-950-g-2-1-lb-501581/501581
           YOGURT_NAME: "Nikko's Greek Yogurt 950g (one-shot test)"
+          DEBUG: "1"
         run: |
           python yogurt_monitor.py check
+
+      - name: Upload fetched HTML for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nikko-page-html
+          path: page_debug.html
+          retention-days: 7
+          if-no-files-found: warn
