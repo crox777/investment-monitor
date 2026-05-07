@@ -336,6 +336,22 @@ def run_check():
     status, evidence, price = check_stock(body_text, full_html)
     log(f"Status: {status} ({evidence})  price={price}")
 
+    # Write a public status.json that the web page reads. Includes only
+    # the data we want exposed publicly — no debug HTML.
+    public_status = {
+        "status": status,
+        "price": price,
+        "last_checked_iso": now_cr.isoformat(),
+        "last_checked_human": timestamp,
+        "product": {
+            "name": PRODUCT["name"],
+            "url": PRODUCT["url"],
+            "id": PRODUCT.get("id"),
+        },
+    }
+    (SCRIPT_DIR / "status.json").write_text(json.dumps(public_status, indent=2))
+    log(f"Wrote status.json: status={status}")
+
     if debug:
         # Dump the full visible body text so we can see exactly what
         # PriceSmart renders and pick the right marker.

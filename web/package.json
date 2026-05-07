@@ -1,0 +1,14 @@
+{
+  "name": "yogurt-watch-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@vercel/kv": "^3.0.0",
+    "resend": "^4.0.0",
+    "stripe": "^17.0.0"
+  }
+}
