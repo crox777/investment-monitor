@@ -17,6 +17,7 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from html import escape as html_escape
 from pathlib import Path
 
 import requests
@@ -302,20 +303,26 @@ def run_check():
         log(f"DEBUG: saved fetched HTML to {debug_path} ({len(html)} bytes)")
         # Surface short snippets around stock-related keywords so we can iterate
         snippets = []
-        for kw in ["agotado", "carrito", "stock", "disponib", "availability", "inStock"]:
+        for kw in ["agotado", "carrito", "stock", "disponib", "availability", "inStock", "outOfStock", "ld+json"]:
             i = html.lower().find(kw.lower())
             if i >= 0:
                 start = max(0, i - 80)
-                end = min(len(html), i + 120)
-                snippets.append(f"<b>{kw}</b>: <code>…{html[start:end].strip()[:180]}…</code>")
+                end = min(len(html), i + 200)
+                raw = html[start:end].replace("\n", " ")[:240]
+                snippets.append(
+                    f"<b>{html_escape(kw)}</b>: <code>{html_escape(raw)}</code>"
+                )
         debug_msg = (
-            f"🔍 <b>Debug — {PRODUCT['name']}</b>\n"
+            f"🔍 <b>Debug — {html_escape(PRODUCT['name'])}</b>\n"
             f"<i>{timestamp}</i>\n"
-            f"Status: <code>{status}</code>\n"
-            f"Evidence: <code>{evidence}</code>\n"
+            f"Status: <code>{html_escape(status)}</code>\n"
+            f"Evidence: <code>{html_escape(evidence)}</code>\n"
             f"HTML size: <code>{len(html)}</code>\n\n"
-            + ("\n".join(snippets) if snippets else "<i>No stock-related keywords found in HTML.</i>")
+            + ("\n\n".join(snippets) if snippets else "<i>No stock-related keywords found in HTML.</i>")
         )
+        # Telegram limit is 4096 chars
+        if len(debug_msg) > 3900:
+            debug_msg = debug_msg[:3900] + "\n<i>…truncated</i>"
         send_telegram(debug_msg, config)
 
     price_line = f"\nPrice: <code>₡{price}</code>" if price else ""

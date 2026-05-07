@@ -2,6 +2,7 @@ name: Yogurt Stock Monitor — One-shot Nikko's test
 
 # Fires exactly once when this file is added/modified on main.
 # Delete this file after the test run.
+# rerun-bump: 2 (escaped debug snippets)
 on:
   push:
     paths:
