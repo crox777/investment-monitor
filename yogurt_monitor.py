@@ -302,15 +302,41 @@ def run_check():
         debug_path.write_text(html)
         log(f"DEBUG: saved fetched HTML to {debug_path} ({len(html)} bytes)")
         # Surface short snippets around stock-related keywords so we can iterate
+        # Extract the SKU from the URL (last path segment) so we can search
+        # for the product's own data block rather than i18n labels.
+        sku_match = re.search(r"/(\d+)/?(?:\?|$)", PRODUCT["url"])
+        sku = sku_match.group(1) if sku_match else None
+
+        keywords = [
+            "inventoryStatus", "stockState", "stockStatus",
+            "isAvailable", "isInStock", "outOfStock", "soldOut", "sold-out",
+            "clubInventory", "qty\":", "quantity\":",
+            "add-to-cart", "addToCart",
+            "Recoger en Club", "Entrega Est",
+        ]
+        if sku:
+            # Search for several windows around the SKU — first is the URL
+            # itself, later occurrences are usually in the product data block.
+            keywords = [f"sku:{sku}"] + keywords
+
         snippets = []
-        for kw in ["agotado", "carrito", "stock", "disponib", "availability", "inStock", "outOfStock", "ld+json"]:
-            i = html.lower().find(kw.lower())
-            if i >= 0:
-                start = max(0, i - 80)
-                end = min(len(html), i + 200)
-                raw = html[start:end].replace("\n", " ")[:240]
+        for kw in keywords:
+            search_term = sku if kw.startswith("sku:") else kw
+            # Find ALL occurrences for SKU; first occurrence for the rest.
+            positions = []
+            start = 0
+            while True:
+                i = html.lower().find(search_term.lower(), start)
+                if i < 0 or len(positions) >= (3 if kw.startswith("sku:") else 1):
+                    break
+                positions.append(i)
+                start = i + 1
+            for pos in positions:
+                lo = max(0, pos - 100)
+                hi = min(len(html), pos + 250)
+                raw = html[lo:hi].replace("\n", " ")[:300]
                 snippets.append(
-                    f"<b>{html_escape(kw)}</b>: <code>{html_escape(raw)}</code>"
+                    f"<b>{html_escape(kw)}</b> @ {pos}: <code>{html_escape(raw)}</code>"
                 )
         debug_msg = (
             f"🔍 <b>Debug — {html_escape(PRODUCT['name'])}</b>\n"
