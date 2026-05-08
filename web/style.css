@@ -207,9 +207,12 @@ fieldset.channel-picker {
   font-size: 11px;
 }
 
-button#subscribe-btn {
+button#subscribe-btn,
+a.subscribe-btn {
+  display: block;
   width: 100%;
   padding: 14px 20px;
+  margin-top: 8px;
   background: var(--ink);
   color: var(--surface);
   border: none;
@@ -218,10 +221,15 @@ button#subscribe-btn {
   font-weight: 600;
   cursor: pointer;
   font-family: var(--font);
+  text-align: center;
+  text-decoration: none;
   transition: opacity 0.15s ease, transform 0.05s ease;
+  box-sizing: border-box;
 }
-button#subscribe-btn:hover { opacity: 0.9; }
-button#subscribe-btn:active { transform: scale(0.99); }
+button#subscribe-btn:hover,
+a.subscribe-btn:hover { opacity: 0.9; }
+button#subscribe-btn:active,
+a.subscribe-btn:active { transform: scale(0.99); }
 button#subscribe-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .error {

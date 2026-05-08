@@ -1,99 +1,81 @@
 # Yogurt Watch — public web page
 
-Static landing page + Stripe-powered $0.99/mo subscription. Deployed on
-Vercel. Reads stock status from `status.json` (committed to this repo by
-the daily GitHub Actions workflow), and sends a daily digest to active
-subscribers via Resend (email) or the Telegram bot.
+Static landing page hosted on **GitHub Pages**. Stripe handles billing via
+a Payment Link (no backend), and the daily digest is sent by the existing
+GitHub Actions workflow that already runs `yogurt_monitor.py`.
 
 ## Architecture
 
 ```
-GH Actions (daily, 9 AM CR)
-   └─> yogurt_monitor.py check
-         ├─ writes status.json   ──── git commit & push ──┐
-         └─ pings personal Telegram                       │
-                                                          ▼
-                                  https://raw.githubusercontent.com/.../status.json
-                                                          │
-Vercel (this directory)                                   │
-   ├─ /                       ──── fetch status.json ─────┘
-   │   shows live stock + subscribe form
-   ├─ /api/checkout           ──── creates Stripe Checkout session
-   ├─ /api/stripe-webhook     ──── persists subscriber in Vercel KV
-   └─ /api/digest             ──── Vercel cron (9:30 AM CR)
-                                   reads subs from KV, sends email/Telegram
+GH Actions  (daily, 9 AM CR)
+   ├─ yogurt_monitor.py check     → writes status.json, commits to main
+   └─ digest.py                   → lists active Stripe subscriptions,
+                                     sends email (Resend) or Telegram
+
+GH Pages
+   └─ web/ deployed automatically on push (workflows/pages.yml)
+        ├─ index.html  fetches status.json from raw.githubusercontent.com
+        └─ Subscribe button → Stripe Payment Link (Stripe-hosted checkout)
 ```
 
-## Setup (one-time)
+No serverless functions. No database. Stripe is the subscriber list.
 
-### 1. Stripe
+## Setup
 
-1. Create a product called "Yogurt Watch — Daily Updates".
-2. Add a recurring price: **$0.99 / month**. Copy the `price_…` ID.
-3. Get your secret key (`sk_live_…` or `sk_test_…`) from Developers → API keys.
-4. Webhooks → Add endpoint → URL: `https://<your-vercel-domain>/api/stripe-webhook`
-   Listen for: `checkout.session.completed`, `customer.subscription.deleted`,
-   `customer.subscription.updated`. Copy the signing secret (`whsec_…`).
+### 1. Create the Stripe Payment Link
 
-### 2. Resend (email)
+1. Stripe Dashboard → Products → **+ Add product**
+   - Name: *Yogurt Watch — Daily Updates*
+   - Price: **$0.99 / month**, recurring
+2. From the new price, click **Create payment link**.
+3. Under **More options**, add **Custom fields**:
+   - Field key: `telegram_chat_id` (must match exactly — the digest reads this key)
+   - Type: Text, Optional
+   - Label: *Telegram chat ID (optional, for Telegram updates)*
+4. Save and copy the link (looks like `https://buy.stripe.com/XXXXXX`).
+5. Edit `web/index.html` and replace the placeholder in `window.YOGURT_CONFIG.stripePaymentLink` with that URL.
+6. Get your secret key from **Developers → API keys** (`sk_live_…` or `sk_test_…`).
+
+### 2. Create a Resend account
 
 1. Sign up at https://resend.com.
-2. Verify a sending domain (or use the sandbox domain to start).
+2. Verify a sending domain (or use the default sandbox while testing).
 3. Copy your API key.
 
-### 3. Telegram bot
+### 3. Add the GitHub repository secrets
 
-Reuse the same bot already used by `yogurt_monitor.py`. Each subscriber will
-need to message the bot at least once before they can receive notifications;
-they paste their numeric chat ID into the subscribe form (find it via
-[@userinfobot](https://t.me/userinfobot)).
+Settings → Secrets and variables → Actions → **New repository secret**:
 
-### 4. Deploy to Vercel
+| Secret | Value |
+|---|---|
+| `STRIPE_SECRET_KEY` | `sk_live_…` |
+| `RESEND_API_KEY` | `re_…` |
+| `FROM_EMAIL` | e.g. `Yogurt Watch <updates@your-domain.com>` |
+| `TELEGRAM_BOT_TOKEN` | Already set (reused from monitor) |
 
-```bash
-cd web
-npx vercel link              # link to a new Vercel project
-npx vercel kv create yogurt  # create KV store and link it (this sets KV_* env vars)
-```
+### 4. Turn on GitHub Pages
 
-Set the remaining env vars (Vercel dashboard → Project → Settings → Environment Variables):
+Repository → Settings → Pages → Build and deployment → **Source: GitHub Actions**.
 
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_ID`
-- `RESEND_API_KEY`
-- `FROM_EMAIL`
-- `TELEGRAM_BOT_TOKEN`
-- `CRON_SECRET` (any long random string)
+The next push to `web/**` (or a manual run of the *Deploy GitHub Pages*
+workflow) publishes to `https://<username>.github.io/<repo>/`.
 
-Then deploy:
+### 5. (Optional) Custom domain
 
-```bash
-npx vercel --prod
-```
+Settings → Pages → Custom domain → enter your domain, then add a `CNAME`
+DNS record pointing to `<username>.github.io`.
 
-### 5. Wire the GH Actions workflow
+## Updating the look / copy
 
-The existing `.github/workflows/yogurt.yml` already commits `status.json`
-back to `main` after each daily check. No additional work — but if your
-default branch isn't `main`, update `STATUS_URL` in `web/script.js` and
-`web/api/digest.js`.
+Just edit `web/index.html` and `web/style.css` and push to `main`. The
+Pages workflow redeploys automatically.
 
-## Testing locally
+## Notes
 
-```bash
-npm install
-npx vercel dev
-```
-
-Use Stripe test mode (`sk_test_…`, `whsec_…` from `stripe listen --forward-to localhost:3000/api/stripe-webhook`) and put the test price ID in `STRIPE_PRICE_ID`.
-
-## Notes / future work
-
-- The cron runs at 9:30 AM CR (15:30 UTC) — 30 min after the GH Actions check
-  commits `status.json`, so the page reads the freshest data.
-- `customer.subscription.deleted` is the canonical "cancelled" signal — we
-  also handle `subscription.updated` for fail-to-pay cases.
-- Stripe fees on $0.99 charges are ~$0.32, leaving ~$0.67 net per sub/month.
-- Auto-Telegram chat-id capture (via bot `/start` deep link) would remove
-  the manual chat-ID step but requires standing up a bot webhook handler.
+- The first email goes out on the next daily run (9 AM CR), not instantly
+  after subscribing — for a daily-update product that's the right cadence.
+- Stripe fees on $0.99/mo subscriptions are ~$0.32, leaving ~$0.67 net.
+- If `STRIPE_SECRET_KEY` is unset, `digest.py` no-ops cleanly so the
+  monitor keeps working before billing is wired up.
+- To watch a different product, edit the `PRODUCT` dict in
+  `yogurt_monitor.py` (root of repo).
