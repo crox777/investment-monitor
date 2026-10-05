@@ -1,8 +1,8 @@
 {
-  "status": "in_stock",
+  "status": "out_of_stock",
   "price": null,
-  "last_checked_iso": "2026-10-04T12:32:40.193846-06:00",
-  "last_checked_human": "Sun, Oct 04 @ 12:32 PM (GMT-6)",
+  "last_checked_iso": "2026-10-05T15:48:42.717393-06:00",
+  "last_checked_human": "Mon, Oct 05 @ 03:48 PM (GMT-6)",
   "product": {
     "name": "Members Selection Greek Yogurt 907g",
     "url": "https://www.pricesmart.com/es-cr/producto/members-selection-yogurt-griego-natural-sin-grasa-907-g-2-lb-98930/98930",
